@@ -1,47 +1,55 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 
-# ... (запази функциите за зареждане от предния път) ...
+st.set_page_config(page_title="Vacha Safety", layout="wide")
+st.title("🌊 Vacha Safety: Мониторинг и Прогноза")
 
-def show_forecast():
-    try:
-        # Вземаме утрешната дата в подходящ формат
-        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
-        
-        df_e = pd.read_csv('data/energy_prices.csv', sep=';')
-        # Филтрираме само за утре (ако си качил данните)
-        tomorrow_prices = df_e[df_e['Date'] == tomorrow]
-        
-        if not tomorrow_prices.empty:
-            st.subheader(f"🔮 Прогноза за утре: {tomorrow}")
-            
-            # Намираме пиковете (цената над средната за деня)
-            avg_price = tomorrow_prices['Price (EUR/MWh)'].mean()
-            danger_hours = tomorrow_prices[tomorrow_prices['Price (EUR/MWh)'] > avg_price * 1.2]
-            
-            if not danger_hours.empty:
-                st.error(f"⚠️ ВНИМАНИЕ: Очаква се ВЕЦ-ът да работи в интервалите:")
-                hours_list = danger_hours['Delivery Period'].values
-                st.write(", ".join(hours_list))
-            
-            # Малка графика за утрешните цени
-            fig_tomorrow = go.Figure()
-            fig_tomorrow.add_trace(go.Scatter(
-                x=tomorrow_prices['Delivery Period'], 
-                y=tomorrow_prices['Price (EUR/MWh)'],
-                line=dict(color='orange', width=3),
-                fill='tozeroy',
-                name="Утрешна цена"
-            ))
-            st.plotly_chart(fig_tomorrow, use_container_width=True)
-        else:
-            st.info("ℹ️ Все още няма данни за утре. Качи новия файл от IBEX след 14:30 ч.")
-            
-    except Exception as e:
-        st.error(f"Неуспешна прогноза: {e}")
+def load_data():
+    # 1. Цени от IBEX
+    df_e = pd.read_csv('data/energy_prices.csv', sep=';')
+    # Почистваме заглавията (ако има интервали)
+    df_e.columns = df_e.columns.str.strip()
+    df_e['hour'] = df_e['Delivery Period'].str.slice(0, 2).astype(int)
+    
+    # 2. Нива на реката
+    df_r = pd.read_csv('data/vacha_levels.csv', skipinitialspace=True)
+    df_r['date'] = df_r['date'].str.strip()
+    return df_e, df_r
 
-# Извикване в основния интерфейс
-if st.sidebar.button("Виж прогноза за утре"):
-    show_forecast()
+try:
+    prices_raw, river = load_data()
+    
+    # Вземаме само днешните данни за основната графика
+    today_str = datetime.now().strftime('%Y-%m-%d') # 2026-02-03
+    
+    # Филтрираме цените за ДНЕС за корелация
+    prices_today = prices_raw[prices_raw['Date'] == today_str]
+    prices_hourly = prices_today.groupby('hour')['Price (EUR/MWh)'].mean().reset_index()
+
+    st.subheader(f"📊 Анализ на ситуацията за днес: {today_str}")
+    
+    # ОСНОВНА ГРАФИКА (ДВЕ ОСИ)
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig.add_trace(go.Scatter(x=river['hour'], y=river['level_cm'], name="Ниво (см)", fill='tozeroy', line=dict(color='#00CCFF')), secondary_y=False)
+    fig.add_trace(go.Scatter(x=prices_hourly['hour'], y=prices_hourly['Price (EUR/MWh)'], name="Цена (EUR)", line=dict(color='red', width=3)), secondary_y=True)
+    
+    st.plotly_chart(fig, use_container_width=True)
+
+    # --- СЕКЦИЯ ПРОГНОЗА ---
+    st.divider()
+    tomorrow_str = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+    prices_tomorrow = prices_raw[prices_raw['Date'] == tomorrow_str]
+
+    if not prices_tomorrow.empty:
+        st.success(f"🔮 НАМЕРЕНИ ДАННИ ЗА УТРЕ: {tomorrow_str}")
+        # Тук сложи същия код за малката оранжева графика от предния път
+        fig_tom = go.Figure(go.Scatter(x=prices_tomorrow['Delivery Period'], y=prices_tomorrow['Price (EUR/MWh)'], fill='tozeroy', line=dict(color='orange')))
+        st.plotly_chart(fig_tom, use_container_width=True)
+    else:
+        st.info(f"ℹ️ Очакваме данни за утре ({tomorrow_str}). Качи ги от IBEX след 14:30 ч.")
+
+except Exception as e:
+    st.error(f"Грешка: {e}")
