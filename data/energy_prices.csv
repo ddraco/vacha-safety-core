@@ -1,8 +1,3 @@
-Historical Data Export
-From Date: 2026-01-27
-To Date: 2026-02-03
-Data Type: Prices and Volumes
-
 Date;Product;Delivery Period;Price (EUR/MWh);Volume (MW)
 2026-01-27;QH 1;00:00 - 00:15;123.62;3710.9
 2026-01-27;QH 2;00:15 - 00:30;120.92;3591.1
