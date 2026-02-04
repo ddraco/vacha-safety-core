@@ -45,19 +45,22 @@ try:
     # ОСНОВНА ГРАФИКА (ДВЕ ОСИ)
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-    # 1. Добавяме линия на безопасност (използваме shape за по-добър контрол)
+    # 1. Добавяме линия на безопасност (Shape)
     fig.add_shape(
         type="line",
         x0=0, x1=23, y0=45, y1=45,
         line=dict(color="Red", width=3, dash="dash"),
         xref="x", yref="y",  # Свързваме я с лявата ос (Ниво)
-        layer='above'        # Винаги най-отгоре
+        layer='above'
     )
     
-    # Добавяме текст към линията, за да е ясно какво е
+    # Добавяме текст (Annotation) с правилни параметри
     fig.add_annotation(
-        x=23, y=45, text="ГРАНИЦА ГАЗЕНЕ (45см)",
-        showarrow=False, yscrenoffset=10, font=dict(color="red")
+        x=12, y=45, 
+        text="ГРАНИЦА ГАЗЕНЕ (45см)",
+        showarrow=False, 
+        ay=-15,             # Отместване нагоре (отрицателна стойност)
+        font=dict(color="red", size=12, family="Arial Black")
     )
 
     # 2. Река (Синя зона)
@@ -74,10 +77,10 @@ try:
         line=dict(color='rgba(255, 75, 75, 0.7)', width=4)
     ), secondary_y=True)
 
-    # 4. Фиксиране на мащабите (ВАЖНО)
-    fig.update_yaxes(range=[0, 150], secondary_y=False) # Лява ос: Ниво
-    fig.update_yaxes(range=[0, 300], secondary_y=True)  # Дясна ос: Цена
-    
+    # 4. Фиксиране на мащабите
+    fig.update_yaxes(range=[0, 150], secondary_y=False) 
+    fig.update_yaxes(range=[0, 300], secondary_y=True)
+
     fig.update_layout(hovermode="x unified", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
     fig.update_xaxes(title_text="Час от денонощието", tickmode='linear', tick0=0, dtick=1)
     fig.update_yaxes(title_text="<b>Ниво (см)</b>", secondary_y=False)
