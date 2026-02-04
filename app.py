@@ -45,22 +45,22 @@ try:
     # ОСНОВНА ГРАФИКА (ДВЕ ОСИ)
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-    # 1. Добавяме линия на безопасност (Shape)
+    # 1. Добавяме линия на безопасност (Свалена на 40см)
     fig.add_shape(
         type="line",
-        x0=0, x1=23, y0=45, y1=45,
+        x0=0, x1=23, y0=40, y1=40,
         line=dict(color="Red", width=3, dash="dash"),
-        xref="x", yref="y",  # Свързваме я с лявата ос (Ниво)
+        xref="x", yref="y",
         layer='above'
     )
     
-    # Добавяме текст (Annotation) с правилни параметри
+    # Добавяме текст (Черен и малко по-ниско)
     fig.add_annotation(
-        x=12, y=45, 
-        text="ГРАНИЦА ГАЗЕНЕ (45см)",
+        x=12, y=40, 
+        text="ГРАНИЦА ГАЗЕНЕ (40см)",
         showarrow=False, 
-        ay=-15,             # Отместване нагоре (отрицателна стойност)
-        font=dict(color="red", size=12, family="Arial Black")
+        ay=-10,             # По-малко отместване, за да е по-близо до линията
+        font=dict(color="black", size=12, family="Arial Black") # Вече е ЧЕРЕН
     )
 
     # 2. Река (Синя зона)
