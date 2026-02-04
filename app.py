@@ -72,4 +72,20 @@ try:
     prices_tomorrow = prices_raw[prices_raw['Date'] == tomorrow_str].sort_values('hour')
 
     if not prices_tomorrow.empty:
-        st.success(f"🔮 ПРОГНОЗА ЗА УТРЕШНИЯ
+        st.success(f"🔮 ПРОГНОЗА ЗА УТРЕШНИЯ ПРИЛИВ: {tomorrow_str}")
+        st.write("Следи пиковете на цената – тогава ВЕЦ-ът вероятно ще отвори крановете.")
+        
+        fig_tom = go.Figure()
+        fig_tom.add_trace(go.Scatter(
+            x=prices_tomorrow['hour'], y=prices_tomorrow['Price (EUR/MWh)'],
+            fill='tozeroy', line=dict(color='orange', width=3),
+            name="Прогнозна цена"
+        ))
+        fig_tom.update_layout(height=300, margin=dict(l=20, r=20, t=20, b=20))
+        st.plotly_chart(fig_tom, use_container_width=True)
+    else:
+        st.info(f"ℹ️ Данните за утре ({tomorrow_str}) ще са налични след 14:30 ч. днес.")
+
+except Exception as e:
+    st.error(f"Грешка при обработката: {e}")
+    st.info("Провери дали имената на колоните в CSV файловете съвпадат точно.")
