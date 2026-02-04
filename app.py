@@ -45,10 +45,20 @@ try:
     # ОСНОВНА ГРАФИКА (ДВЕ ОСИ)
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-    # 1. Добавяме линия на безопасност (45 см)
-    fig.add_hline(y=45, line_dash="dash", line_color="red", 
-              annotation_text="ГРАНИЦА ЗА ГАЗЕНЕ (45см)", 
-              annotation_position="bottom right")
+    # 1. Добавяме линия на безопасност (използваме shape за по-добър контрол)
+    fig.add_shape(
+        type="line",
+        x0=0, x1=23, y0=45, y1=45,
+        line=dict(color="Red", width=3, dash="dash"),
+        xref="x", yref="y",  # Свързваме я с лявата ос (Ниво)
+        layer='above'        # Винаги най-отгоре
+    )
+    
+    # Добавяме текст към линията, за да е ясно какво е
+    fig.add_annotation(
+        x=23, y=45, text="ГРАНИЦА ГАЗЕНЕ (45см)",
+        showarrow=False, yscrenoffset=10, font=dict(color="red")
+    )
 
     # 2. Река (Синя зона)
     fig.add_trace(go.Scatter(
@@ -61,13 +71,13 @@ try:
     fig.add_trace(go.Scatter(
         x=prices_hourly['hour'], y=prices_hourly['Price (EUR/MWh)'], 
         name="Цена Ток (EUR)", 
-     line=dict(color='rgba(255, 75, 75, 0.5)', width=4) # Правим я по-бледа, за да не пречи
+        line=dict(color='rgba(255, 75, 75, 0.7)', width=4)
     ), secondary_y=True)
 
-    # 4. Центрираме осите, за да не изглежда, че цената е "под" водата
-    fig.update_yaxes(range=[0, 150], secondary_y=False) # Мащабираме нивото
-    fig.update_yaxes(range=[0, 300], secondary_y=True)  # Мащабираме цената
-
+    # 4. Фиксиране на мащабите (ВАЖНО)
+    fig.update_yaxes(range=[0, 150], secondary_y=False) # Лява ос: Ниво
+    fig.update_yaxes(range=[0, 300], secondary_y=True)  # Дясна ос: Цена
+    
     fig.update_layout(hovermode="x unified", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
     fig.update_xaxes(title_text="Час от денонощието", tickmode='linear', tick0=0, dtick=1)
     fig.update_yaxes(title_text="<b>Ниво (см)</b>", secondary_y=False)
