@@ -10,50 +10,66 @@ st.title("🌊 Vacha Safety: Мониторинг и Прогноза")
 def load_data():
     # 1. Цени от IBEX
     df_e = pd.read_csv('data/energy_prices.csv', sep=';')
-    # Почистваме заглавията (ако има интервали)
     df_e.columns = df_e.columns.str.strip()
+    # Превръщаме часа в число и датата в datetime обект
     df_e['hour'] = df_e['Delivery Period'].str.slice(0, 2).astype(int)
+    df_e['Date_dt'] = pd.to_datetime(df_e['Date'])
     
     # 2. Нива на реката
     df_r = pd.read_csv('data/vacha_levels.csv', skipinitialspace=True)
     df_r['date'] = df_r['date'].str.strip()
+    # СЪРЦЕТО НА ОПТИМИЗАЦИЯТА: Превръщаме в datetime за правилно сортиране
+    df_r['dt_obj'] = pd.to_datetime(df_r['date'] + ' ' + df_r['hour'].astype(str).str.zfill(2) + ':00', dayfirst=True)
+    
     return df_e, df_r
 
 try:
     prices_raw, river_raw = load_data()
     
-    # 1. Намираме коя е последната налична дата в данните за реката
-    latest_river_date = river_raw['date'].iloc[-1]
+    # --- ЛОГИКА ЗА СИНХРОНИЗАЦИЯ ---
+    # Намираме най-новата дата в данните за реката, без значение от подредбата на файла
+    latest_river_dt = river_raw['dt_obj'].max()
+    latest_river_date_str = latest_river_dt.strftime('%d.%m.%Y')
+    target_date_iso = latest_river_dt.strftime('%Y-%m-%d')
+
+    # Филтрираме реката и сортираме хронологично (от 00:00 към 23:00)
+    river = river_raw[river_raw['date'] == latest_river_date_str].sort_values('dt_obj')
     
-    # 2. Филтрираме и двата датафрейма само за тази дата
-    river = river_raw[river_raw['date'] == latest_river_date]
-    
-    # За борсата филтрираме същата дата (но внимаваме с формата на датата)
-    # Ако в реката е 03.02.2026, а в борсата 2026-02-03, преобразуваме:
-    prices_today = prices_raw[prices_raw['Date'].str.contains(datetime.now().strftime('%Y-%m-%d'))]
+    # Филтрираме борсата за СЪЩАТА дата като реката
+    prices_today = prices_raw[prices_raw['Date'] == target_date_iso]
     prices_hourly = prices_today.groupby('hour')['Price (EUR/MWh)'].mean().reset_index()
 
-    st.subheader(f"📊 Текущ анализ за дата: {latest_river_date}")
+    st.subheader(f"📊 Текущ анализ за дата: {latest_river_date_str}")
     
     # ОСНОВНА ГРАФИКА (ДВЕ ОСИ)
     fig = make_subplots(specs=[[{"secondary_y": True}]])
-    fig.add_trace(go.Scatter(x=river['hour'], y=river['level_cm'], name="Ниво (см)", fill='tozeroy', line=dict(color='#00CCFF')), secondary_y=False)
-    fig.add_trace(go.Scatter(x=prices_hourly['hour'], y=prices_hourly['Price (EUR/MWh)'], name="Цена (EUR)", line=dict(color='red', width=3)), secondary_y=True)
+    
+    # Река (Синя зона)
+    fig.add_trace(go.Scatter(
+        x=river['hour'], y=river['level_cm'], 
+        name="Ниво Въча (см)", fill='tozeroy', 
+        line=dict(color='#00CCFF', width=2)
+    ), secondary_y=False)
+    
+    # Цена на тока (Червена линия)
+    fig.add_trace(go.Scatter(
+        x=prices_hourly['hour'], y=prices_hourly['Price (EUR/MWh)'], 
+        name="Цена Ток (EUR/MWh)", 
+        line=dict(color='#FF4B4B', width=3, dash='dot')
+    ), secondary_y=True)
+
+    fig.update_layout(hovermode="x unified", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+    fig.update_xaxes(title_text="Час от денонощието", tickmode='linear', tick0=0, dtick=1)
+    fig.update_yaxes(title_text="<b>Ниво (см)</b>", secondary_y=False)
+    fig.update_yaxes(title_text="<b>Цена (EUR)</b>", secondary_y=True)
     
     st.plotly_chart(fig, use_container_width=True)
 
     # --- СЕКЦИЯ ПРОГНОЗА ---
     st.divider()
-    tomorrow_str = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
-    prices_tomorrow = prices_raw[prices_raw['Date'] == tomorrow_str]
+    tomorrow_dt = latest_river_dt + timedelta(days=1)
+    tomorrow_str = tomorrow_dt.strftime('%Y-%m-%d')
+    prices_tomorrow = prices_raw[prices_raw['Date'] == tomorrow_str].sort_values('hour')
 
     if not prices_tomorrow.empty:
-        st.success(f"🔮 НАМЕРЕНИ ДАННИ ЗА УТРЕ: {tomorrow_str}")
-        # Тук сложи същия код за малката оранжева графика от предния път
-        fig_tom = go.Figure(go.Scatter(x=prices_tomorrow['Delivery Period'], y=prices_tomorrow['Price (EUR/MWh)'], fill='tozeroy', line=dict(color='orange')))
-        st.plotly_chart(fig_tom, use_container_width=True)
-    else:
-        st.info(f"ℹ️ Очакваме данни за утре ({tomorrow_str}). Качи ги от IBEX след 14:30 ч.")
-
-except Exception as e:
-    st.error(f"Грешка: {e}")
+        st.success(f"🔮 ПРОГНОЗА ЗА УТРЕШНИЯ
