@@ -42,21 +42,31 @@ try:
     st.subheader(f"📊 Текущ анализ за дата: {latest_river_date_str}")
     
     # ОСНОВНА ГРАФИКА (ДВЕ ОСИ)
+    # ОСНОВНА ГРАФИКА (ДВЕ ОСИ)
     fig = make_subplots(specs=[[{"secondary_y": True}]])
-    
-    # Река (Синя зона)
+
+    # 1. Добавяме линия на безопасност (45 см)
+    fig.add_hline(y=45, line_dash="dash", line_color="red", 
+              annotation_text="ГРАНИЦА ЗА ГАЗЕНЕ (45см)", 
+              annotation_position="bottom right")
+
+    # 2. Река (Синя зона)
     fig.add_trace(go.Scatter(
         x=river['hour'], y=river['level_cm'], 
         name="Ниво Въча (см)", fill='tozeroy', 
         line=dict(color='#00CCFF', width=2)
     ), secondary_y=False)
-    
-    # Цена на тока (Червена линия)
+
+    # 3. Цена на тока (Червена линия)
     fig.add_trace(go.Scatter(
         x=prices_hourly['hour'], y=prices_hourly['Price (EUR/MWh)'], 
-        name="Цена Ток (EUR/MWh)", 
-        line=dict(color='#FF4B4B', width=3, dash='dot')
+        name="Цена Ток (EUR)", 
+     line=dict(color='rgba(255, 75, 75, 0.5)', width=4) # Правим я по-бледа, за да не пречи
     ), secondary_y=True)
+
+    # 4. Центрираме осите, за да не изглежда, че цената е "под" водата
+    fig.update_yaxes(range=[0, 150], secondary_y=False) # Мащабираме нивото
+    fig.update_yaxes(range=[0, 300], secondary_y=True)  # Мащабираме цената
 
     fig.update_layout(hovermode="x unified", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
     fig.update_xaxes(title_text="Час от денонощието", tickmode='linear', tick0=0, dtick=1)
