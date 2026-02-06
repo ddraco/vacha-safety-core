@@ -100,8 +100,14 @@ try:
         dtick=43200000/2 # Показва маркер на всеки 12 часа
     )
     
-    st.plotly_chart(fig, use_container_width=True)
-    #st.plotly_chart(fig, use_container_width=True)
+    # Added
+    # 1. Основната 7-дневна графика
+    st.plotly_chart(fig, use_container_width=True, key="history_chart")
+
+    # ... малко по-надолу в секцията за Прогноза ...
+
+    # 2. Графиката за утре (внимавай, тук е fig_tom!)
+    st.plotly_chart(fig_tom, use_container_width=True, key="forecast_chart")
 
     # --- СЕКЦИЯ ПРОГНОЗА ---
     st.divider()
