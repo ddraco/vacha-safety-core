@@ -29,77 +29,78 @@ try:
     # --- ЛОГИКА ЗА 7-ДНЕВЕН СИНХРОНИЗИРАН АНАЛИЗ ---
     # 1. Определяме крайния момент (най-новия запис)
     latest_dt = river_raw['dt_obj'].max()
+    
+    # Дефинираме липсващата променлива за subheader-а, за да не гърми
+    latest_river_date_str = latest_dt.strftime('%d.%m.%Y') 
+    
     # 2. Изчисляваме началния момент (преди 7 дни)
     start_dt = latest_dt - timedelta(days=7)
 
     # 3. Филтрираме и ДВАТА набора данни по времеви диапазон
-    # Река: взимаме последните 7 дни и сортираме хронологично
     river = river_raw[(river_raw['dt_obj'] >= start_dt) & (river_raw['dt_obj'] <= latest_dt)].sort_values('dt_obj')
     
-    # Цени: филтрираме по датите, които присъстват в нашия 7-дневен речен филтър
+    # Подготовка на цените
     relevant_dates = river['dt_obj'].dt.strftime('%Y-%m-%d').unique()
-    prices_filtered = prices_raw[prices_raw['Date'].isin(relevant_dates)]
+    prices_filtered = prices_raw[prices_raw['Date'].isin(relevant_dates)].copy()
     
-    # Важно: Сглобяваме datetime за цените, за да се подредят правилно по оста X
+    # Сглобяваме datetime обекти за цените, за да се подредят по времевата ос X
     prices_filtered['dt_obj'] = pd.to_datetime(prices_filtered['Date'] + ' ' + prices_filtered['hour'].astype(str).str.zfill(2) + ':00')
     prices_hourly = prices_filtered.sort_values('dt_obj')
 
-    st.subheader(f"📊 Седмичен анализ: {start_dt.strftime('%d.%m')} - {latest_dt.strftime('%d.%m.%Y')}")
-
-    # Филтрираме реката и сортираме хронологично (от 00:00 към 23:00)
-    river = river_raw[river_raw['date'] == latest_river_date_str].sort_values('dt_obj')
+    st.subheader(f"📊 Седмичен анализ (Последно обновяване: {latest_river_date_str})")
     
-    # Филтрираме борсата за СЪЩАТА дата като реката
-    prices_today = prices_raw[prices_raw['Date'] == target_date_iso]
-    prices_hourly = prices_today.groupby('hour')['Price (EUR/MWh)'].mean().reset_index()
-
-    st.subheader(f"📊 Текущ анализ за дата: {latest_river_date_str}")
-    
-    # ОСНОВНА ГРАФИКА (ДВЕ ОСИ)
     # ОСНОВНА ГРАФИКА (ДВЕ ОСИ)
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-    # 1. Добавяме линия на безопасност (Свалена на 40см)
+    # 1. Линия на безопасност (вече е по цялата дължина на 7-те дни)
     fig.add_shape(
         type="line",
-        x0=0, x1=23, y0=40, y1=40,
+        x0=river['dt_obj'].min(), x1=river['dt_obj'].max(), y0=40, y1=40,
         line=dict(color="Red", width=3, dash="dash"),
         xref="x", yref="y",
         layer='above'
     )
     
-    # Добавяме текст (Черен и малко по-ниско)
+    # Текст за линията (центриран спрямо 7-дневния период)
     fig.add_annotation(
-        x=12, y=30, 
+        x=river['dt_obj'].mean(), y=30, 
         text="ГРАНИЦА ГАЗЕНЕ (40см)",
         showarrow=False, 
-        ay=-10,             # По-малко отместване, за да е по-близо до линията
-        font=dict(color="black", size=12, family="Arial Black") # Вече е ЧЕРЕН
+        font=dict(color="black", size=12, family="Arial Black")
     )
 
     # 2. Река (Синя зона)
     fig.add_trace(go.Scatter(
-        x=river['hour'], y=river['level_cm'], 
+        x=river['dt_obj'], y=river['level_cm'], 
         name="Ниво Въча (см)", fill='tozeroy', 
         line=dict(color='#00CCFF', width=2)
     ), secondary_y=False)
 
     # 3. Цена на тока (Червена линия)
     fig.add_trace(go.Scatter(
-        x=prices_hourly['hour'], y=prices_hourly['Price (EUR/MWh)'], 
+        x=prices_hourly['dt_obj'], y=prices_hourly['Price (EUR/MWh)'], 
         name="Цена Ток (EUR)", 
         line=dict(color='rgba(255, 75, 75, 0.7)', width=4)
     ), secondary_y=True)
 
-    # 4. Фиксиране на мащабите
+    # Настройки на мащабите и X-оста
     fig.update_yaxes(range=[0, 150], secondary_y=False) 
-    fig.update_yaxes(range=[0, 300], secondary_y=True)
+    fig.update_yaxes(range=[0, 350], secondary_y=True) # Малко по-висок диапазон за цените
 
-    fig.update_layout(hovermode="x unified", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-    fig.update_xaxes(title_text="Час от денонощието", tickmode='linear', tick0=0, dtick=1)
-    fig.update_yaxes(title_text="<b>Ниво (см)</b>", secondary_y=False)
-    fig.update_yaxes(title_text="<b>Цена (EUR)</b>", secondary_y=True)
+    fig.update_layout(
+        hovermode="x unified", 
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        height=600 # Увеличаваме височината за по-добра видимост на 7 дни
+    )
     
+    # Форматираме оста X да показва ден и месец
+    fig.update_xaxes(
+        title_text="Дата и Час", 
+        tickformat="%d.%m\n%H:%M",
+        dtick=43200000/2 # Показва маркер на всеки 12 часа
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
     st.plotly_chart(fig, use_container_width=True)
 
     # --- СЕКЦИЯ ПРОГНОЗА ---
