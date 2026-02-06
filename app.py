@@ -109,32 +109,11 @@ try:
     # 2. Графиката за утре (внимавай, тук е fig_tom!)
     st.plotly_chart(fig_tom, use_container_width=True, key="forecast_chart")
 
-    # --- СЕКЦИЯ ПРОГНОЗА ---
-    st.divider()
-    tomorrow_dt = latest_river_dt + timedelta(days=1)
-    tomorrow_str = tomorrow_dt.strftime('%Y-%m-%d')
-    
-    # Филтрираме цените за утре
-    prices_tomorrow = prices_raw[prices_raw['Date'] == tomorrow_str].sort_values('hour')
+    File "/workspaces/vacha-safety-core/app.py", line 140
+          st.info(f"ℹ️ Данните за утре ({tomorrow_str}) ще са налични след 14:30 ч. днес.")
+                                                                                           ^
+SyntaxError: expected 'except' or 'finally' block
 
-    if not prices_tomorrow.empty:
-        st.success(f"🔮 ПРОГНОЗА ЗА УТРЕШНИЯ ПРИЛИВ: {tomorrow_str}")
-        st.write("Следи пиковете на цената – тогава ВЕЦ-ът вероятно ще отвори крановете.")
-        
-        # СЪЗДАВАМЕ fig_tom САМО АКО ИМА ДАННИ
-        fig_tom = go.Figure()
-        fig_tom.add_trace(go.Scatter(
-            x=prices_tomorrow['hour'], y=prices_tomorrow['Price (EUR/MWh)'],
-            fill='tozeroy', line=dict(color='orange', width=3),
-            name="Прогнозна цена"
-        ))
-        fig_tom.update_layout(
-            height=300, 
-            margin=dict(l=20, r=20, t=20, b=20),
-            xaxis=dict(tickmode='linear', tick0=0, dtick=1, title="Час")
-        )
-        
-        # ЧЕРТАЕМ Я ТУК, ВЪТРЕ В IF-а
-        st.plotly_chart(fig_tom, use_container_width=True, key="tomorrow_chart")
-    else:
-        st.info(f"ℹ️ Данните за утре ({tomorrow_str}) ще са налични след 14:30 ч. днес.")
+except Exception as e:
+    st.error(f"Грешка при обработката: {e}")
+    st.info("Провери дали имената на колоните в CSV файловете съвпадат точно.")
