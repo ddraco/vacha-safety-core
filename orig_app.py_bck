@@ -26,25 +26,11 @@ def load_data():
 try:
     prices_raw, river_raw = load_data()
     
-    # --- ЛОГИКА ЗА 7-ДНЕВЕН СИНХРОНИЗИРАН АНАЛИЗ ---
-    # 1. Определяме крайния момент (най-новия запис)
-    latest_dt = river_raw['dt_obj'].max()
-    # 2. Изчисляваме началния момент (преди 7 дни)
-    start_dt = latest_dt - timedelta(days=7)
-
-    # 3. Филтрираме и ДВАТА набора данни по времеви диапазон
-    # Река: взимаме последните 7 дни и сортираме хронологично
-    river = river_raw[(river_raw['dt_obj'] >= start_dt) & (river_raw['dt_obj'] <= latest_dt)].sort_values('dt_obj')
-    
-    # Цени: филтрираме по датите, които присъстват в нашия 7-дневен речен филтър
-    relevant_dates = river['dt_obj'].dt.strftime('%Y-%m-%d').unique()
-    prices_filtered = prices_raw[prices_raw['Date'].isin(relevant_dates)]
-    
-    # Важно: Сглобяваме datetime за цените, за да се подредят правилно по оста X
-    prices_filtered['dt_obj'] = pd.to_datetime(prices_filtered['Date'] + ' ' + prices_filtered['hour'].astype(str).str.zfill(2) + ':00')
-    prices_hourly = prices_filtered.sort_values('dt_obj')
-
-    st.subheader(f"📊 Седмичен анализ: {start_dt.strftime('%d.%m')} - {latest_dt.strftime('%d.%m.%Y')}")
+    # --- ЛОГИКА ЗА СИНХРОНИЗАЦИЯ ---
+    # Намираме най-новата дата в данните за реката, без значение от подредбата на файла
+    latest_river_dt = river_raw['dt_obj'].max()
+    latest_river_date_str = latest_river_dt.strftime('%d.%m.%Y')
+    target_date_iso = latest_river_dt.strftime('%Y-%m-%d')
 
     # Филтрираме реката и сортираме хронологично (от 00:00 към 23:00)
     river = river_raw[river_raw['date'] == latest_river_date_str].sort_values('dt_obj')
