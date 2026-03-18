@@ -5,49 +5,54 @@ from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 import os
 
-# Настройки на страницата
+# 1. Настройки на страницата
 st.set_page_config(page_title="Vacha Safety & Energy Analytics", layout="wide")
 st.title("🌊 Vacha Safety: Мониторинг и Прогноза")
 
 def load_data():
-    # 1. Цени от IBEX
+    # --- ЗАРЕЖДАНЕ НА ЦЕНИ (ENERGY) ---
+    # Четем със сепаратор ";" точно както е в IBEX
     df_e = pd.read_csv('data/energy_prices.csv', sep=';')
-    df_e.columns = df_e.columns.str.strip()
+    
+    # Пречистване от празни редове, за да не гърми с NaN
+    df_e = df_e.dropna(subset=['Date', 'Delivery Period', 'Price (EUR/MWh)'])
+    
+    # Извличаме часа и правим dt_obj (поддържаме 15-минутките за по-гладка графика)
     df_e['hour'] = df_e['Delivery Period'].str.slice(0, 2).astype(int)
-    df_e['Date_dt'] = pd.to_datetime(df_e['Date'])
+    df_e['dt_obj'] = pd.to_datetime(df_e['Date'] + ' ' + df_e['Delivery Period'].str.slice(0, 5))
     
-    # 2. Нива на реката
-    df_r = pd.read_csv('data/vacha_levels.csv', skipinitialspace=True)
+    # --- ЗАРЕЖДАНЕ НА РЕКАТА (RIVER) ---
+    df_r = pd.read_csv('data/vacha_levels.csv')
     
-    # АВТОМАТИЧНО ПРЕИМЕНУВАНЕ (Оправя грешката с level_)
+    # Пречистване от празни редове
+    df_r = df_r.dropna(subset=['date', 'hour', 'level_cm'])
+    
+    # Автоматично преименуване на колоната за ниво, ако името варира
     df_r = df_r.rename(columns={col: 'level_cm' for col in df_r.columns if 'level' in col})
     
-    df_r['date'] = df_r['date'].str.strip()
-    # Сглобяваме обекта за времето
-    df_r['dt_obj'] = pd.to_datetime(df_r['date'] + ' ' + df_r['hour'].astype(str).str.zfill(2) + ':00', dayfirst=True)
+    # Подсигуряваме, че часът е цяло число (оправа грешката float NaN -> int)
+    df_r['hour'] = df_r['hour'].astype(int)
+    
+    # Сглобяваме времето за реката
+    df_r['dt_obj'] = pd.to_datetime(
+        df_r['date'].str.strip() + ' ' + df_r['hour'].astype(str).str.zfill(2) + ':00', 
+        dayfirst=True
+    )
     
     return df_e, df_r
 
 try:
     prices_raw, river_raw = load_data()
     
-    # --- ЛОГИКА ЗА 7-ДНЕВЕН СИНХРОНИЗИРАН АНАЛИЗ ---
+    # --- ЛОГИКА ЗА 7-ДНЕВЕН ПЕРИОД ---
     latest_river_dt = river_raw['dt_obj'].max()
-    latest_river_date_str = latest_river_dt.strftime('%d.%m.%Y')
-    
-    # Дефинираме период от точно 7 дни назад
     start_dt = latest_river_dt - timedelta(days=7)
 
-    # Филтрираме реката и борсата
-    river = river_raw[(river_raw['dt_obj'] >= start_dt) & (river_raw['dt_obj'] <= latest_river_dt)].sort_values('dt_obj')
-    
-    relevant_dates = river['dt_obj'].dt.strftime('%Y-%m-%d').unique()
-    prices_filtered = prices_raw[prices_raw['Date'].isin(relevant_dates)].copy()
-    
-    prices_filtered['dt_obj'] = pd.to_datetime(prices_filtered['Date'] + ' ' + prices_filtered['hour'].astype(str).str.zfill(2) + ':00')
-    prices_hourly = prices_filtered.sort_values('dt_obj')
+    # Филтрираме двата сета данни да са в един и същ времеви прозорец
+    river = river_raw[river_raw['dt_obj'] >= start_dt].sort_values('dt_obj')
+    prices = prices_raw[prices_raw['dt_obj'] >= start_dt].sort_values('dt_obj')
 
-    st.subheader(f"📊 Седмичен анализ: {start_dt.strftime('%d.%m')} - {latest_river_date_str}")
+    st.subheader(f"📊 Седмичен анализ: {start_dt.strftime('%d.%m')} - {latest_river_dt.strftime('%d.%m.%Y')}")
     
     # --- ОСНОВНА ГРАФИКА (ДВЕ ОСИ) ---
     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -59,39 +64,33 @@ try:
         line=dict(color="Red", width=3, dash="dash"),
         xref="x", yref="y", layer='above'
     )
-    
-    fig.add_annotation(
-        x=river['dt_obj'].mean(), y=30, 
-        text="ГРАНИЦА ГАЗЕНЕ (40см)",
-        showarrow=False, 
-        font=dict(color="black", size=12, family="Arial Black")
-    )
 
-    # 2. Река (Синя зона)
+    # 2. Река (Синя зона - Ниво)
     fig.add_trace(go.Scatter(
         x=river['dt_obj'], y=river['level_cm'], 
-        name="Ниво Въча (см)", fill='tozeroy', 
+        name="Ниво Въча (см)", 
+        fill='tozeroy', 
         line=dict(color='#00CCFF', width=2)
     ), secondary_y=False)
 
     # 3. Цена на тока (Червена линия)
     fig.add_trace(go.Scatter(
-        x=prices_hourly['dt_obj'], y=prices_hourly['Price (EUR/MWh)'], 
+        x=prices['dt_obj'], y=prices['Price (EUR/MWh)'], 
         name="Цена Ток (EUR)", 
         line=dict(color='rgba(255, 75, 75, 0.7)', width=4)
     ), secondary_y=True)
 
-    # Динамичен мащаб на Y (ниво на водата)
+    # Настройки на мащаба (спрямо твоите предпочитания)
     max_level = river['level_cm'].max()
-    fig.update_yaxes(range=[0, max(150, max_level + 20)], secondary_y=False) 
-    fig.update_yaxes(range=[0, 450], secondary_y=True)
+    fig.update_yaxes(range=[0, max(150, max_level + 20)], title_text="<b>Ниво (см)</b>", secondary_y=False)
+    fig.update_yaxes(range=[0, 450], title_text="<b>Цена (EUR)</b>", secondary_y=True)
 
     fig.update_layout(
-        hovermode="x unified", 
+        hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         height=600,
         xaxis=dict(
-            range=[start_dt, latest_river_dt], # Фиксираме Х-оста да не бяга
+            range=[start_dt, latest_river_dt],
             type="date",
             tickformat="%d.%m\n%H:%M",
             dtick=43200000.0, # Маркер на всеки 12 часа
@@ -99,36 +98,35 @@ try:
         )
     )
     
-    fig.update_yaxes(title_text="<b>Ниво (см)</b>", secondary_y=False)
-    fig.update_yaxes(title_text="<b>Цена (EUR)</b>", secondary_y=True)
-    
-    st.plotly_chart(fig, use_container_width=True, key="main_vacha_chart")
+    st.plotly_chart(fig, use_container_width=True, key="main_chart")
 
-    # --- СЕКЦИЯ ПРОГНОЗА ---
+    # --- СЕКЦИЯ ПРОГНОЗА ЗА УТРЕ ---
     st.divider()
-    tomorrow_dt = latest_river_dt + timedelta(days=1)
+    tomorrow_dt = (datetime.now() + timedelta(days=1)).replace(hour=0, minute=0, second=0)
     tomorrow_str = tomorrow_dt.strftime('%Y-%m-%d')
-    prices_tomorrow = prices_raw[prices_raw['Date'] == tomorrow_str].sort_values('hour')
+    
+    # Филтрираме цените за утрешния ден
+    prices_tomorrow = prices_raw[prices_raw['Date'] == tomorrow_str].sort_values('dt_obj')
 
     if not prices_tomorrow.empty:
-        st.success(f"🔮 ПРОГНОЗА ЗА УТРЕШНИЯ ПРИЛИВ: {tomorrow_str}")
+        st.success(f"🔮 ПРОГНОЗА ЗА УТРЕШНИЯ ПРИЛИВ: {tomorrow_dt.strftime('%d.%m.%Y')}")
         st.write("Следи пиковете на цената – тогава ВЕЦ-ът вероятно ще отвори турбините.")
         
         fig_tom = go.Figure()
         fig_tom.add_trace(go.Scatter(
-            x=prices_tomorrow['hour'], y=prices_tomorrow['Price (EUR/MWh)'],
+            x=prices_tomorrow['dt_obj'], y=prices_tomorrow['Price (EUR/MWh)'],
             fill='tozeroy', line=dict(color='orange', width=3),
             name="Прогнозна цена"
         ))
         fig_tom.update_layout(
-            height=300, 
+            height=350,
             margin=dict(l=20, r=20, t=20, b=20),
-            xaxis=dict(tickmode='linear', tick0=0, dtick=1, title="Час")
+            xaxis=dict(title="Час от денонощието")
         )
-        st.plotly_chart(fig_tom, use_container_width=True, key="tomorrow_forecast_chart")
+        st.plotly_chart(fig_tom, use_container_width=True, key="forecast_chart")
     else:
-        st.info(f"ℹ️ Данните за утре ({tomorrow_str}) ще са налични след 14:30 ч. днес.")
+        st.info(f"ℹ️ Прогнозата за утре ({tomorrow_dt.strftime('%d.%m')}) ще е налична в базата след обновяване на данните (обикновено след 14:30 ч.).")
 
 except Exception as e:
-    st.error(f"❌ Грешка при обработката: {e}")
-    st.info("Провери структурата на CSV файловете в папка 'data/'.")
+    st.error(f"❌ Грешка при визуализацията: {e}")
+    st.info("💡 Увери се, че първо си пуснал 'sync_vacha.py', за да се генерират CSV файловете.")
