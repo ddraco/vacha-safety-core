@@ -1,8 +1,10 @@
 name: Vacha Data Scraper
+
 on:
   schedule:
-    - cron: '0 1 * * 2,6' # 03:00 AM вторник и събота
+    - cron: '0 1 * * 2,6'
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
