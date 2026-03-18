@@ -98,7 +98,7 @@ try:
         )
     )
     
-    st.plotly_chart(fig, use_container_width=True, key="main_chart")
+    st.plotly_chart(fig, use_container_width=True, config={'staticPlot': False, 'scrollZoom': False, 'displayModeBar': False})
 
     # --- СЕКЦИЯ ПРОГНОЗА ЗА УТРЕ ---
     st.divider()
