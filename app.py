@@ -13,7 +13,7 @@ st.title("🌊 Vacha Safety: Мониторинг и Прогноза")
 mobile_config = {
     'scrollZoom': False,
     'displayModeBar': False,
-    'staticPlot': False,
+    'staticPlot': True,
     'responsive': True
 }
 
